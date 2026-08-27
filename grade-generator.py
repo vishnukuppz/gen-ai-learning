@@ -1,4 +1,4 @@
-
+# Week 1 - Day 2 Assignemnt: Grade Generator
 mark = int(input("Enter your mark: "))
 
 #raise exception if mark is less than 0 or greater than 100
