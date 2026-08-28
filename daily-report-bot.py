@@ -4,7 +4,7 @@ Week 1 - Day 3 Assignment
 
 This script automates:
 1. Launching Google Chrome via Spotlight
-2. Navigating to the target website (FastAPI docs)
+2. Navigating to the target website (Sample Document)
 3. Copying page content to clipboard
 4. Saving raw content to a local date-stamped text file
 5. Formatting a 3-column summary row (Timestamp, Snippet, Comment)
@@ -21,7 +21,7 @@ import pyperclip
 # ==============================================================================
 # CONFIGURATION
 # ==============================================================================
-TARGET_URL = "https://fastapi.tiangolo.com"
+TARGET_URL = "https://documentero.com/templates/general-examples/document/sample-document/"
 DEFAULT_COMMENT = "Good for outdoor activities"
 
 CHROME_APP_NAME = "Google Chrome"
@@ -81,13 +81,30 @@ def navigate_in_browser(url: str):
     time.sleep(PAGE_LOAD_DELAY)
 
 
-def copy_webpage_content() -> str:
-    """Selects all content on the active web page and copies it to clipboard."""
-    print("--> Copying webpage content...")
-    press_cmd_key('a')  # Select all
+def copy_webpage_content(start_x: int = 200, start_y: int = 650, end_x: int = 800, end_y: int = 900) -> str:
+    """Selects a specific area on the web page using mouse drag and copies it to clipboard."""
+    print(f"--> Selecting screen area from ({start_x}, {start_y}) to ({end_x}, {end_y}) via mouse drag...")
+    
+    # Move to starting point inside the web page content viewport (y >= 250 avoids Chrome tab/toolbar)
+    pyautogui.moveTo(start_x, start_y)
+    time.sleep(0.2)
+    
+    # Press mouse button down
+    pyautogui.mouseDown(button='left')
+    time.sleep(0.2)
+    
+    # Drag smoothly to the target coordinate
+    pyautogui.dragTo(end_x, end_y, duration=1.0, button='left')
+    time.sleep(0.2)
+    
+    # Release mouse button to finish text selection
+    pyautogui.mouseUp(button='left')
     time.sleep(ACTION_DELAY)
-    press_cmd_key('c')  # Copy
+    
+    # Copy selected text
+    press_cmd_key('c')
     time.sleep(ACTION_DELAY)
+    
     return pyperclip.paste()
 
 
@@ -126,11 +143,11 @@ def main():
     navigate_in_browser(TARGET_URL)
     fetched_content = copy_webpage_content()
 
-    # 4. Prepare Structured 3-Column Spreadsheet Row
-    snippet = " ".join(fetched_content.split())[:150] if fetched_content else "FastAPI Documentation"
+    # 3. Prepare Structured 3-Column Spreadsheet Row
+    snippet = " ".join(fetched_content.split())[:150] if fetched_content else "Sample Documentation"
     row_data = f"{datetime_str}\t{snippet}\t{DEFAULT_COMMENT}"
 
-    # 5. Open Numbers App and Create New Document
+    # 4. Open Numbers App and Create New Document
     open_app_via_spotlight(NUMBERS_APP_NAME, wait_seconds=APP_LAUNCH_DELAY)
     
     print("--> Creating new spreadsheet document...")
@@ -139,14 +156,14 @@ def main():
     pyautogui.press('enter')  # Select blank template
     time.sleep(2.0)
 
-    # 6. Paste 3-Column Row into Spreadsheet
+    # 5. Paste 3-Column Row into Spreadsheet
     print("--> Pasting 3-column summary row (Date/Time, Snippet, Comment)...")
     pyperclip.copy(row_data)
     press_cmd_key('v')  # Tab-separated paste populates adjacent columns
     time.sleep(1.0)
 
-    # 7. Move to Row Below and Paste Full Content
-    print("--> Moving down to next row and pasting full FastAPI contents...")
+    # 6. Move to Row Below and Paste Full Content
+    print("--> Moving down to next row and pasting sample doc...")
     pyautogui.press('enter')
     time.sleep(ACTION_DELAY)
 
@@ -155,7 +172,7 @@ def main():
     press_cmd_key('v')
     time.sleep(1.5)
 
-    # 8. Save Numbers Document
+    # 7. Save Numbers Document
     print(f"--> Saving Numbers document as '{numbers_filename}'...")
     press_cmd_key('s')
     time.sleep(1.5)
@@ -165,7 +182,7 @@ def main():
     pyautogui.press('enter')
     time.sleep(1.5)
 
-    # 9. Take Screenshot
+    # 8. Take Screenshot
     take_screenshot(screenshot_filename)
 
     print("==================================================")
