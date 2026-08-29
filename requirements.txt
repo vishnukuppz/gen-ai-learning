@@ -2,3 +2,6 @@ pyautogui
 playwright
 openpyxl
 pandas
+uvicorn
+streamlit
+fastapi[standard]
