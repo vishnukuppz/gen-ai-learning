@@ -1,0 +1,411 @@
+{
+  "name": "Student CSV clean",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Color schema ",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "upload file",
+              "fieldType": "file"
+            }
+          ]
+        },
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        0,
+        0
+      ],
+      "id": "cf147009-f30c-431d-8f6c-432e629ad95c",
+      "name": "On form submission",
+      "webhookId": "a254e033-779b-489a-adaa-5307c0f95423"
+    },
+    {
+      "parameters": {
+        "binaryPropertyName": "upload_file",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        224,
+        0
+      ],
+      "id": "2185874c-42a9-4d0e-9b15-1d9fccb14500",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an expert data-cleaning and validation assistant.\n\nYou will receive ONE row of student data from a CSV file. The row may contain:\n\nTypos\nIncorrect casing\nFormatting issues\nInvalid values\nMissing values\n\nYour task is to clean and validate the row while preserving the original meaning.\n\nCleaning Rules\nStudent_ID\nKeep the original Student_ID when it is valid.\nFix obvious formatting issues only.\nDo not invent a Student_ID.\nIf missing or impossible to determine, return null.\nName\nFix obvious spelling mistakes.\nConvert to proper title case.\nExample: john doe → John Doe\nDo not invent or substantially change a person's name.\nEmail\nConvert the email to lowercase.\nRemove obvious accidental spaces.\nFix obvious formatting mistakes only when the intended email is clear.\nDo not invent missing email information.\nIf the email cannot be safely corrected, preserve the cleaned value.\nEmail_Valid must indicate whether the resulting email is logically valid.\nPhone\nRemove unnecessary spaces or formatting characters when appropriate.\nStandardize the phone number when the intended number is clear.\nDo not invent missing digits.\nIf the phone number cannot be safely corrected, preserve the cleaned value.\nCourse\nFix obvious spelling mistakes.\nStandardize obvious variations of the same course name.\nDo not change the course if its intended meaning is unclear.\nFee_Paid\nConvert the value into a clean numeric value.\nRemove currency symbols and unnecessary formatting.\nExample: $1,500 → 1500\nExample: ₹2500 → 2500\nDo not invent a fee amount.\nIf the value is missing or cannot be determined, return null.\nCity\nCorrect obvious spelling mistakes.\nConvert to proper capitalization.\nExample: new york → New York\nDo not change the city if the intended city is unclear.\nEnrolled_Date\nConvert the date to YYYY-MM-DD.\nCorrect obvious formatting issues when the date is unambiguous.\nExample: 15/01/2025 → 2025-01-15\nDo not guess ambiguous dates.\nIf the date cannot be safely determined, return null.\nEmail_Valid\n\nSet this to true or false.\n\nAn email is logically valid only if it has a reasonable structure such as:\n\nname@example.com\n\nCheck that:\n\nThere is exactly one @.\nThere is text before @.\nThere is a domain after @.\nThe domain contains a valid-looking extension such as .com, .org, .net, etc.\n\nThis is a logical format check only. Do not verify whether the email address actually exists.\n\nImportant Rules\nReturn ONLY valid JSON.\nDo not return Markdown.\nDo not use code fences.\nDo not include explanations or comments.\nUse EXACTLY these keys:\nStudent_ID\nName\nEmail\nPhone\nCourse\nFee_Paid\nCity\nEnrolled_Date\nEmail_Valid\nDo not add any additional keys.\nPreserve the original information whenever possible.\nNever invent missing information.\nUse null when a value is missing or cannot be safely determined.\nFee_Paid must be a number or null.\nEmail_Valid must be a boolean: true or false.\nEnrolled_Date must use YYYY-MM-DD format or null.\nReturn exactly ONE JSON object for the input row.\nRequired Output Format\n\n{\n\"Student_ID\": \"ST001\",\n\"Name\": \"John Doe\",\n\"Email\": \"john.doe@example.com\",\n\"Phone\": \"9876543210\",\n\"Course\": \"Computer Science\",\n\"Fee_Paid\": 50000,\n\"City\": \"Hyderabad\",\n\"Enrolled_Date\": \"2025-01-15\",\n\"Email_Valid\": true\n}\n\nInput\n\nStudent_ID: {{ $json.Student_ID }}\nName: {{ $json.Name }}\nEmail: {{ $json.Email }}\nPhone: {{ $json.Phone }}\nCourse: {{ $json.Course }}\nFee_Paid: {{ $json.Fee_Paid }}\nCity: {{ $json.City }}\nEnrolled_Date: {{ $json.Enrolled_Date }}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        448,
+        0
+      ],
+      "id": "1600d878-63b0-4a63-b288-bea48819561d",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        448,
+        176
+      ],
+      "id": "09fa9f78-4ca8-49e0-a738-2890497763c1",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "NwXITctHDpwpF0od",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = [];\n\nfor (const item of $input.all()) {\n  let text = item.json.text;\n\n  // Skip empty values\n  if (!text) {\n    continue;\n  }\n\n  try {\n    // If the LLM returned escaped JSON like:\n    // {\\n \"Student_ID\": \"STU1001\", ...}\n    // convert it into normal JSON\n    if (typeof text === 'string') {\n      text = text.trim();\n\n      // Remove markdown code fences if the LLM adds them\n      text = text.replace(/^```json\\s*/i, '');\n      text = text.replace(/^```\\s*/i, '');\n      text = text.replace(/\\s*```$/i, '');\n\n      // Parse JSON string\n      text = JSON.parse(text);\n    }\n\n    // Make sure we have an object\n    if (text && typeof text === 'object' && !Array.isArray(text)) {\n      output.push({\n        json: {\n          Student_ID: text.Student_ID ?? null,\n          Name: text.Name ?? null,\n          Email: text.Email ?? null,\n          Phone: text.Phone ?? null,\n          Course: text.Course ?? null,\n          Fee_Paid: text.Fee_Paid ?? null,\n          City: text.City ?? null,\n          Enrolled_Date: text.Enrolled_Date ?? null,\n          Email_Valid: text.Email_Valid ?? false\n        }\n      });\n    }\n\n  } catch (error) {\n    // Keep invalid responses separate instead of breaking the workflow\n    output.push({\n      json: {\n        error: true,\n        message: 'Invalid JSON returned by LLM',\n        raw_output: item.json.text\n      }\n    });\n  }\n}\n\nreturn output;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        208
+      ],
+      "id": "85418f9a-a061-4245-be92-82bafda16cc6",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "binaryPropertyName": "chennai_valid_email",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1664,
+        -128
+      ],
+      "id": "fc337a54-a186-45ab-8e18-951c7f69a67b",
+      "name": "Convert to File"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        784,
+        0
+      ],
+      "id": "e922230c-44d8-4849-b6ca-5080008e8821",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "e355bf5d-fd7a-414c-812d-305bfb2981f6",
+              "leftValue": "={{ $json.City }}",
+              "rightValue": "Chennai",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1040,
+        -64
+      ],
+      "id": "567726f6-bdf8-4669-83a0-c3f57896230b",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c066c149-d738-4fff-8e8f-8bcf1714f2dd",
+              "leftValue": "={{ $json.Email.isEmail() }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1312,
+        -96
+      ],
+      "id": "8a444500-f930-44c9-a0e6-cb94f95576e9",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c066c149-d738-4fff-8e8f-8bcf1714f2dd",
+              "leftValue": "={{ $json.Email.isEmail() }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1312,
+        80
+      ],
+      "id": "5b0531f7-c5c5-414a-ab73-816c897852e3",
+      "name": "If2"
+    },
+    {
+      "parameters": {
+        "binaryPropertyName": "chennai_invalid_email",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1664,
+        32
+      ],
+      "id": "2f13db77-40c7-4314-8f8d-40125741ec9e",
+      "name": "Convert to File1"
+    },
+    {
+      "parameters": {
+        "binaryPropertyName": "other_valid_email",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1680,
+        240
+      ],
+      "id": "36e5ab46-54b8-4e99-b040-eb98af376a7c",
+      "name": "Convert to File2"
+    },
+    {
+      "parameters": {
+        "binaryPropertyName": "other_invalid_email",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1680,
+        432
+      ],
+      "id": "76354431-f2ab-42e9-b2cc-8fc18b05eb73",
+      "name": "Convert to File3"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Convert to File1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If2": {
+      "main": [
+        [
+          {
+            "node": "Convert to File2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Convert to File3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "23b704d5-8de5-4491-9f11-b9035085a306",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1ac7e14449760b66c77b9893398337218d373a92a6f9f9e1daf0bf4e4e6f8393"
+  },
+  "nodeGroups": [],
+  "id": "5JsFQ14NLLl25LKk",
+  "tags": []
+}
