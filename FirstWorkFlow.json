@@ -1,0 +1,182 @@
+{
+  "name": "FirstWorkFlow",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Color schema ",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "upload file",
+              "fieldType": "file"
+            }
+          ]
+        },
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        0,
+        0
+      ],
+      "id": "da421e55-b78d-4784-8503-1481f8fdb09f",
+      "name": "On form submission",
+      "webhookId": "2f108ef6-4d8e-4b6a-9dee-f48b96e9d0cc"
+    },
+    {
+      "parameters": {
+        "binaryPropertyName": "upload_file",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        224,
+        0
+      ],
+      "id": "e060406f-beda-4bdb-9420-cc56a5b8e32a",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a color-filtering assistant.\n\nThe input is ONE color record with these fields:\n\nName\nHEX\nRGB\n\nYour task is to determine whether this color is DARK.\n\nExtract the R, G, and B numbers from the RGB field.\n\nCalculate brightness using:\n\nbrightness = (0.299 × R) + (0.587 × G) + (0.114 × B)\n\nThe color is DARK only when:\n\nbrightness < 128\n\nIf the color is DARK, return exactly this JSON object:\n\n{\n\"name\": \"original Name\",\n\"Hex\": \"original HEX\",\n\"RGB\": \"rgb(R,G,B)\"\n}\n\nRules:\n\nPreserve the original Name exactly.\nPreserve the original HEX exactly.\nPreserve the RGB values exactly.\nRGB must always be a STRING.\nDo not change RGB into an array.\nDo not add any other properties.\nDo not add explanations.\nDo not use Markdown.\nReturn valid JSON only.\n\nIf the color is NOT DARK, return:\n\nnull\n\nInput color:\n\nName: {{ $json[\"﻿Name\"] }}\nHEX: {{ $json[\"HEX\"] }}\nRGB: {{ $json[\"RGB\"] }}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        448,
+        0
+      ],
+      "id": "c355925e-0abe-4e34-a8ef-b7aaa3674d99",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        448,
+        176
+      ],
+      "id": "f670c5a4-3100-4112-bf73-126e0d4f68a6",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "NwXITctHDpwpF0od",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = [];\n\nfor (const item of $input.all()) {\n  const text = item.json.text;\n\n  // Ignore null / empty results\n  if (!text || text.trim() === 'null') {\n    continue;\n  }\n\n  try {\n    // Parse the JSON string returned by the LLM\n    const color = JSON.parse(text);\n\n    // Make sure it's a valid color object\n    if (\n      color &&\n      typeof color === 'object' &&\n      color.name &&\n      color.Hex &&\n      color.RGB\n    ) {\n      output.push({\n        json: {\n          name: color.name,\n          Hex: color.Hex,\n          RGB: color.RGB\n        }\n      });\n    }\n  } catch (error) {\n    // Ignore malformed LLM responses\n    continue;\n  }\n}\n\nreturn output;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        816,
+        0
+      ],
+      "id": "3aa9a6ba-3cab-4f84-aca0-ee823668c764",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "71c2b0ba-39f5-44e5-9d4e-3fd407cc0b2b",
+      "name": "Convert to File"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "b5c2254a-0536-49bd-a8bf-9a81a11f7b83",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1ac7e14449760b66c77b9893398337218d373a92a6f9f9e1daf0bf4e4e6f8393"
+  },
+  "nodeGroups": [],
+  "id": "uNZ6ZUkPn0AVjcxZ",
+  "tags": []
+}
