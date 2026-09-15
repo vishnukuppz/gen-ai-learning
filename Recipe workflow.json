@@ -1,0 +1,176 @@
+{
+  "name": "Recipe workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a dedicated recipe assistant bot operating in a Slack workspace. Your sole purpose is to provide cooking recipes to users in valid JSON format.\n\nStrictly follow these guidelines for every incoming message:\n1. **Validate the Request**: Check if the user's input is asking for a recipe, dish, or cooking instructions.\n2. **Handle Non-Recipe Input**: If the user's input is unrelated to food or recipes, do not answer with a recipe. Instead, return a JSON response containing this exact message:\n{\n  \"message\": \"Please ask for a recipe, I am unable to assist with other requests.\"\n}\n3. **Format Recipe Responses**: If the user requests a valid recipe, you must return your response strictly as a valid JSON object matching this exact schema:\n{\n  \"ingredients_required\": [\n    \"Ingredient 1 - 5tps or required quantity\",\n    \"Ingredient 2 - 1tps or required quantity\"\n  ],\n  \"procedure\": [\n    \"step 1: Put oil in pan\",\n    \"step 2: throw curry leaves\"\n  ]\n}\n\nEnsure your output is strictly valid JSON with no extra conversational text outside of the JSON structure.\n\nuser prompt :  {{ $json.text }}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        224,
+        0
+      ],
+      "id": "468e2b0e-c6e4-410a-bf77-0dcee5888671",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "responsesApiEnabled": false,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        160,
+        208
+      ],
+      "id": "11f0e3d7-f366-4c26-99cd-4bc097b6ea17",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "hNtksM8DRwVuhLDY",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "trigger": [
+          "message"
+        ],
+        "channelId": {
+          "__rl": true,
+          "value": "C0C2TTQSX24",
+          "mode": "list",
+          "cachedResultName": "n8n-automation"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.slackTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "1014d6bb-6b77-46d1-a775-641dc7332563",
+      "name": "Slack Trigger",
+      "webhookId": "0c1f94a3-f40c-4042-a5bc-5ea30e18e42b",
+      "credentials": {
+        "slackApi": {
+          "id": "RPeExZj5J6zQecgM",
+          "name": "Slack account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "for (const item of $input.all()) {\n  // Get raw text from the previous LLM node (adjust 'text' or 'message' if needed)\n  let rawText = item.json.text || item.json.message || item.json; \n  let parsedData = {};\n\n  // Step 1: Clean and Parse JSON string\n  if (typeof rawText === 'string') {\n    let cleanedText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();\n    try {\n      parsedData = JSON.parse(cleanedText);\n    } catch (error) {\n      item.json = { \n        error: \"Failed to parse JSON string\", \n        details: error.message, \n        raw: rawText,\n        slackMessage: \"Sorry, I encountered an error processing your recipe request.\"\n      };\n      continue;\n    }\n  } else {\n    parsedData = rawText;\n  }\n\n  // Step 2: Handle non-recipe validation messages\n  if (parsedData.message) {\n    item.json = {\n      ...parsedData,\n      slackMessage: parsedData.message\n    };\n    continue;\n  }\n\n  // Step 3: Format the recipe data into a Slack-friendly message\n  let ingredients = parsedData.ingredients_required || [];\n  let procedure = parsedData.procedure || [];\n\n  let ingredientsText = ingredients.map(ing => `• ${ing}`).join('\\n');\n  let procedureText = procedure.map(step => `> ${step}`).join('\\n');\n\n  let slackMessage = `*Here is your recipe:* \\n\\n` +\n                     `*Ingredients Required:*\\n${ingredientsText}\\n\\n` +\n                     `*Step-by-Step Procedure:*\\n${procedureText}`;\n\n  // Step 4: Output both the parsed JSON structure and the ready-to-use slack message\n  item.json = {\n    ...parsedData,\n    slackMessage: slackMessage\n  };\n}\n\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        592,
+        0
+      ],
+      "id": "c0c386e5-a710-4eba-adb5-9209dd14d7be",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0C2TTQSX24",
+          "mode": "list",
+          "cachedResultName": "n8n-automation"
+        },
+        "text": "={{ $json.slackMessage }}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.7,
+      "position": [
+        816,
+        0
+      ],
+      "id": "a2275712-226c-49b8-8fad-931fa6d0b0fd",
+      "name": "Send a message",
+      "webhookId": "b06ec6fd-e2b0-4716-b66b-94c45c927686",
+      "credentials": {
+        "slackApi": {
+          "id": "RPeExZj5J6zQecgM",
+          "name": "Slack account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Trigger": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "9340bbb8-43f1-419c-a8ea-32b0112cfae0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e8fbd338bcfe580048a160ededd4d52242e57cf03fedf20500a3262c98456d30"
+  },
+  "nodeGroups": [],
+  "id": "nC9nW7oVqy2RnK9y",
+  "tags": []
+}

@@ -1,0 +1,171 @@
+{
+  "name": "Gen AI workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        0,
+        0
+      ],
+      "id": "8698eb2f-1801-4237-82a2-4678c2581546",
+      "name": "Telegram Trigger",
+      "webhookId": "0e66c044-fd98-4437-ad41-0a54f68563db",
+      "credentials": {
+        "telegramApi": {
+          "id": "EaFXZTt6ADWaYrfW",
+          "name": "demobot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=\nYou are an expert AI assistant that processes user requests to draft professional emails and outputs ONLY a strict JSON object.\n\n### Instructions:\n1. Read the User Request below carefully. \n2. Extract the recipient's name or email address for the \"to\" field. (If an email address is provided, use it).\n3. Determine if any CC recipients are mentioned. If none, set \"cc\" to \"None\".\n4. Create a relevant, professional \"subject\" line based on the user request.\n5. Write a professional email \"body\" addressing the exact intent of the request (e.g., greetings, work anniversary, etc.).\n6. MANDATORY: The email body must always end with:\n   Regards,\n   Kuppusamy\n7. Output format: Return ONLY a raw JSON object with keys \"to\", \"cc\", \"subject\", and \"body\". Do not wrap it in markdown code blocks unless necessary, and do not include any conversational text.\n\n### User Request: {{ $json.message.text }}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        224,
+        0
+      ],
+      "id": "07741d4e-575c-4959-b1b9-ef4b492acf97",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "responsesApiEnabled": false,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        160,
+        208
+      ],
+      "id": "af1289d7-fbb2-48b0-a51d-0beadb12071a",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "hNtksM8DRwVuhLDY",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop through incoming items from the LLM node\nreturn $input.all().map(item => {\n  // Adjust 'output' to match your LLM node's actual text field name (e.g., text, message, or response)\n  let rawText = item.json.output || item.json.text || \"\";\n\n  // 1. Clean up markdown code blocks if the LLM added them\n  let cleanedText = rawText.replace(/```json/g, \"\").replace(/```/g, \"\").trim();\n\n  let parsedEmail;\n  try {\n    // 2. Parse the JSON string into a JavaScript object\n    parsedEmail = JSON.parse(cleanedText);\n  } catch (error) {\n    // Fallback in case the LLM output wasn't valid JSON\n    parsedEmail = {\n      to: \"\",\n      cc: \"\",\n      subject: \"Error Parsing Email\",\n      body: rawText // Pass the raw text through so you don't lose data\n    };\n  }\n\n  // 3. Return the structured data for the next node\n  return {\n    json: {\n      to: parsedEmail.to,\n      cc: parsedEmail.cc,\n      subject: parsedEmail.subject,\n      body: parsedEmail.body\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        592,
+        0
+      ],
+      "id": "fe76b80d-8ff7-4b56-a57d-26e7bafab041",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "text",
+        "message": "={{ $json.body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        816,
+        0
+      ],
+      "id": "eada19bb-0584-496e-94f6-abf95696e595",
+      "name": "Send a message",
+      "webhookId": "18c08966-90c0-497e-95c3-8808f1e59465",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "lrSucVdzbUZOkbnb",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "7acd04b9-79cd-41aa-b244-a81d3d60a1c8",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e8fbd338bcfe580048a160ededd4d52242e57cf03fedf20500a3262c98456d30"
+  },
+  "nodeGroups": [],
+  "id": "Qp31IiQ2ug3kceDG",
+  "tags": []
+}
